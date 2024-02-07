@@ -1,64 +1,73 @@
-import asyncio
 import logging
 import sys
-from os import getenv
-
+from aiohttp import web
+import asyncio
 from aiogram import Bot, Dispatcher, Router, types
-from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+from os import getenv
 from dotenv import load_dotenv
 
 
 load_dotenv()
-
-
-# Bot token can be obtained via https://t.me/BotFather
 TOKEN = getenv("BOT_TOKEN")
+WEB_SERVER_HOST = "0.0.0.0"
+WEB_SERVER_PORT = 8443
+WEBHOOK_PATH = "/tg_webhook"
+WEBHOOK_URL = "https://mikle-coder.fun"
 
-# All handlers should be attached to the Router (or Dispatcher)
-dp = Dispatcher()
 
+router = Router()
 
-@dp.message(CommandStart())
+@router.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    """
-    This handler receives messages with `/start` command
-    """
-    # Most event objects have aliases for API methods that can be called in events' context
-    # For example if you want to answer to incoming message you can use `message.answer(...)` alias
-    # and the target chat will be passed to :ref:`aiogram.methods.send_message.SendMessage`
-    # method automatically or call API method directly via
-    # Bot instance: `bot.send_message(chat_id=message.chat.id, ...)`
+    logging.debug(f"Received command_start: {message}")
     await message.answer(f"Hello, {hbold(message.from_user.full_name)}!")
 
 
-@dp.message()
+@router.message()
 async def echo_handler(message: types.Message) -> None:
-    """
-    Handler will forward receive a message back to the sender
-
-    By default, message handler will handle all message types (like a text, photo, sticker etc.)
-    """
+    logging.debug(f"Received message: {message}")
     try:
-        # Send a copy of the received message
         await message.send_copy(chat_id=message.chat.id)
     except TypeError:
-        # But not all the types is supported to be copied so need to handle it
         await message.answer("Nice try!")
 
 
+async def on_startup(bot: Bot) -> None:
+    logging.info("Bot has been started")
+    await bot.set_webhook(f"{WEBHOOK_URL}:{WEB_SERVER_PORT}{WEBHOOK_PATH}")
+    logging.info("Webhook has been set up")
+
+async def on_shutdown(bot: Bot) -> None:
+    logging.warning("Bot is being shut down...")
+    await bot.delete_webhook()
+
 async def main() -> None:
-    # Initialize Bot instance with a default parse mode which will be passed to all API calls
-    bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
-    # And the run events dispatching
-    await dp.start_polling(bot)
+    bot = Bot(TOKEN)
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+
+    app = web.Application()
+
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+
+    await web._run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    logging.getLogger('aiogram').setLevel(logging.DEBUG)
     asyncio.run(main())
-
-
-

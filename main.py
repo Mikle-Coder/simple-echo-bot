@@ -2,7 +2,7 @@ import logging
 import sys
 from aiohttp import web
 import asyncio
-from aiogram import Bot, Dispatcher, Router, types
+from aiogram import Bot, Dispatcher, Router, types, enums
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
@@ -13,11 +13,11 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-TOKEN = getenv("BOT_TOKEN")
-WEB_SERVER_HOST = "0.0.0.0"
-WEB_SERVER_PORT = 8443
-WEBHOOK_PATH = "/tg_webhook"
-WEBHOOK_URL = "https://mikle-coder.fun"
+BOT_TOKEN = getenv("BOT_TOKEN")
+WEB_SERVER_HOST = getenv("WEB_SERVER_HOST")
+WEB_SERVER_PORT = int(getenv("WEB_SERVER_PORT"))
+WEBHOOK_PATH = getenv("WEBHOOK_PATH")
+WEBHOOK_URL = getenv("WEBHOOK_URL")
 
 
 router = Router()
@@ -39,7 +39,7 @@ async def echo_handler(message: types.Message) -> None:
 
 async def on_startup(bot: Bot) -> None:
     logging.info("Bot has been started")
-    await bot.set_webhook(f"{WEBHOOK_URL}:{WEB_SERVER_PORT}{WEBHOOK_PATH}")
+    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
     logging.info("Webhook has been set up")
 
 async def on_shutdown(bot: Bot) -> None:
@@ -47,7 +47,7 @@ async def on_shutdown(bot: Bot) -> None:
     await bot.delete_webhook()
 
 async def main() -> None:
-    bot = Bot(TOKEN)
+    bot = Bot(token=BOT_TOKEN, parse_mode=enums.ParseMode.HTML)
     dp = Dispatcher()
     dp.include_router(router)
 
